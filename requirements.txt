@@ -103,3 +103,7 @@ urllib3==2.6.2
 uvicorn==0.40.0
 wandb==0.18.7
 yarl==1.22.0
+pytest
+pytest-cov
+httpx
+
