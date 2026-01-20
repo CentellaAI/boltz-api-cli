@@ -1,0 +1,71 @@
+steps:
+  # =========================================================
+  # Step 1: Build Docker image
+  # =========================================================
+  - name: gcr.io/cloud-builders/docker
+    args:
+      [
+        "build",
+        "-t",
+        "us-central1-docker.pkg.dev/$PROJECT_ID/boltz/boltz-api:$SHORT_SHA",
+        "."
+      ]
+
+  # =========================================================
+  # Step 2: Push image to Artifact Registry
+  # =========================================================
+  - name: gcr.io/cloud-builders/docker
+    args:
+      [
+        "push",
+        "us-central1-docker.pkg.dev/$PROJECT_ID/boltz/boltz-api:$SHORT_SHA"
+      ]
+
+  # =========================================================
+  # Step 3: Deploy to Cloud Run (GPU)
+  # =========================================================
+  - name: gcr.io/cloud-builders/gcloud
+    args:
+      [
+        "run", "deploy", "boltz-api",
+
+        "--image",
+        "us-central1-docker.pkg.dev/$PROJECT_ID/boltz/boltz-api:$SHORT_SHA",
+
+        "--region", "us-central1",
+        "--platform", "managed",
+        "--port", "8000",
+
+        # -------- GPU CONFIG --------
+        "--execution-environment", "gen2",
+        "--gpu", "1",
+        "--gpu-type", "nvidia-l4",
+        "--no-gpu-zonal-redundancy",
+
+        # -------- RESOURCES --------
+        "--cpu", "8",
+        "--memory", "32Gi",
+
+        # -------- REQUEST BEHAVIOR --------
+        "--concurrency", "1",
+        "--timeout", "3600",
+
+        # -------- AUTOSCALING --------
+        "--min-instances", "0",
+        "--max-instances", "1",
+
+        # -------- SERVICE ACCOUNT --------
+        "--service-account",
+        "ml-storage-access@$PROJECT_ID.iam.gserviceaccount.com",
+
+        # -------- ACCESS --------
+        "--allow-unauthenticated"
+      ]
+
+# =========================================================
+# Global build settings
+# =========================================================
+timeout: "3600s"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
