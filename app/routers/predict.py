@@ -7,23 +7,31 @@ from app.schemas.predict import (
 )
 from app.utils.workspace import create_workspace
 from app.utils.yaml_input import write_boltz_input_yaml
+from app.utils.cli import run_boltz_cli
+from app.utils.results import collect_prediction_outputs
 
 router = APIRouter()
 
 
 @router.post(
     "/predict",
-    response_model=PredictComplexResponse,
-    summary="Prepare Boltz inline prediction job",
+    summary="Run Boltz prediction end-to-end (sync)",
 )
 def predict_complex(request: PredictComplexRequest):
     """
-    Prepare a Boltz job by generating an inline YAML input.
+    Prepare + run a Boltz job in one call.
+
     Supports:
     - protein
     - protein–protein
     - protein–ligand
     - protein–DNA/RNA
+
+    This endpoint:
+    1) creates job
+    2) writes input.yaml
+    3) runs boltz predict (blocking)
+    4) returns results
     """
 
     try:
@@ -41,15 +49,25 @@ def predict_complex(request: PredictComplexRequest):
             sequences=request.sequences,
         )
 
+        # 4️⃣ Run Boltz CLI inference (BLOCKING)
+        run_boltz_cli(
+            input_yaml=yaml_path,
+            output_dir=workspace["outputs"],
+        )
+
+        # 5️⃣ Collect outputs
+        outputs = collect_prediction_outputs(job_id)
+
+        return {
+            "job_id": job_id,
+            "status": "COMPLETED",
+            "results": outputs,
+        }
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Job preparation failed: {e}",
+            detail=f"Prediction failed: {e}",
         )
-
-    return PredictComplexResponse(
-        job_id=job_id,
-        status="READY_FOR_INFERENCE",
-    )

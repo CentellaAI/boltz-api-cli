@@ -1,6 +1,6 @@
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 
 BASE_JOBS_DIR = Path("/tmp/boltz_jobs")
 
@@ -19,120 +19,60 @@ def get_prediction_dir(job_id: str) -> Path:
 
 
 # -------------------------------
-# JSON view (for machines / Swagger)
+# HTML RESULTS PAGE (HUMANS)
 # -------------------------------
-@router.get("/{job_id}/view")
-def view_results(job_id: str):
+@router.get("/{job_id}", response_class=HTMLResponse)
+def view_results_html(job_id: str):
     """
-    List generated prediction files with download links (JSON).
+    Human-friendly HTML results page with clickable downloads.
     """
     pred_dir = get_prediction_dir(job_id)
 
     if not pred_dir.exists():
         raise HTTPException(status_code=404, detail="Results not found")
 
-    files = []
-    for f in pred_dir.iterdir():
-        if f.suffix in (".cif", ".json", ".npz"):
-            files.append(
-                {
-                    "name": f.name,
-                    "type": f.suffix.replace(".", ""),
-                    "download_url": f"/results/{job_id}/download/{f.name}",
-                }
-            )
-
-    return {
-        "job_id": job_id,
-        "files": files,
-    }
-
-
-# -------------------------------
-# HTML view (for humans / browser)
-# -------------------------------
-@router.get("/{job_id}", response_class=HTMLResponse)
-def view_results_html(job_id: str):
-    """
-    Human-friendly HTML page with one-click downloads.
-    """
-    pred_dir = get_prediction_dir(job_id)
-
-    if not pred_dir.exists():
-        return HTMLResponse(
-            "<h2>Results not found</h2>",
-            status_code=404,
-        )
-
-    rows = ""
-    for f in pred_dir.iterdir():
-        if f.suffix in (".cif", ".json", ".npz"):
-            rows += f"""
-            <tr>
-                <td>{f.name}</td>
-                <td>{f.suffix}</td>
-                <td>
-                    <a href="/results/{job_id}/download/{f.name}" download>
-                        ⬇ Download
-                    </a>
-                </td>
-            </tr>
-            """
+    files = [
+        f.name for f in pred_dir.iterdir()
+        if f.suffix in (".cif", ".json", ".npz")
+    ]
 
     html = f"""
     <html>
-    <head>
-        <title>Boltz Results</title>
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                margin: 40px;
-            }}
-            table {{
-                border-collapse: collapse;
-                width: 100%;
-            }}
-            th, td {{
-                border: 1px solid #ddd;
-                padding: 10px;
-            }}
-            th {{
-                background-color: #f2f2f2;
-            }}
-            tr:hover {{
-                background-color: #f9f9f9;
-            }}
-            a {{
-                text-decoration: none;
-                color: #007bff;
-                font-weight: bold;
-            }}
-        </style>
-    </head>
-    <body>
-        <h2>Results for Job ID: {job_id}</h2>
-        <table>
-            <tr>
-                <th>File</th>
-                <th>Type</th>
-                <th>Download</th>
-            </tr>
-            {rows}
-        </table>
-    </body>
+        <head>
+            <title>Boltz Results – {job_id}</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                h1 {{ color: #2c3e50; }}
+                ul {{ line-height: 1.8; }}
+            </style>
+        </head>
+        <body>
+            <h1>Boltz Prediction Results</h1>
+            <p><b>Job ID:</b> {job_id}</p>
+
+            <h2>Generated Files</h2>
+            <ul>
+                {''.join(
+                    f'<li><a href="/results/{job_id}/file/{name}" download>{name}</a></li>'
+                    for name in files
+                )}
+            </ul>
+
+            <p><i>Click a file to download.</i></p>
+        </body>
     </html>
     """
 
-    return HTMLResponse(html)
+    return HTMLResponse(content=html)
 
 
 # -------------------------------
-# Download endpoint (actual file)
+# FILE SERVING (BROWSER DOWNLOAD)
 # -------------------------------
-@router.get("/{job_id}/download/{filename}")
-def download_result(job_id: str, filename: str):
+@router.get("/{job_id}/file/{filename}")
+def download_result_file(job_id: str, filename: str):
     """
-    Download a specific result file.
+    Serve result files for browser download.
     """
     pred_dir = get_prediction_dir(job_id)
     file_path = pred_dir / filename

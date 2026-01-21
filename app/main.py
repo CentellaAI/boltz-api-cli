@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.routers import predict, infer, results
+from app.routers import predict,results
 from app.routers import analysis
 
 app = FastAPI(
@@ -10,10 +10,8 @@ app = FastAPI(
 )
 
 app.include_router(predict.router)
-app.include_router(infer.router)
-app.include_router(results.router)
 app.include_router(analysis.router)
-
+app.include_router(results.router)
 @app.get("/health")
 def health_check():
     return {"status": "ok"}

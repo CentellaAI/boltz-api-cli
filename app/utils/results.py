@@ -26,7 +26,6 @@ def collect_prediction_outputs(job_id: str):
                 {
                     "name": f.name,
                     "type": f.suffix.replace(".", ""),
-                    "download_url": f"/results/{job_id}/download/{f.name}",
                 }
             )
 
